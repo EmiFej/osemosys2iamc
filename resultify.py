@@ -12,6 +12,10 @@ where:
     ``output_path`` is the path to the csv file written out in IAMC format
 
 """
+import warnings
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import pandas as pd
 import pyam
 from openentrance import iso_mapping
@@ -76,7 +80,7 @@ def filter_emission_tech(df: pd.DataFrame, tech: List, emission: List) -> pd.Dat
         df_f = df_f.append(df_t)
 
     df_f['REGION'] = df_f['TECHNOLOGY'].str[:2]
-    df = df_f.drop(columns='TECHNOLOGY')
+    df = df_f.drop(columns=['TECHNOLOGY', 'EMISSION'])
 
     df['VALUE'] = df['VALUE']*(-1)
 
@@ -91,7 +95,7 @@ def filter_capacity(df: pd.DataFrame, technologies: List) -> pd.DataFrame:
         mask = df['TECHNOLOGY'].str.contains(technologies[t])
         df_t = df[mask]
         df_f = df_f.append(df_t)
-
+    
     df = pd.DataFrame(columns=["REGION","YEAR","VALUE"])
     for r in df_f["REGION"].unique():
         for y in df_f["YEAR"].unique():
@@ -107,7 +111,7 @@ def filter_ProdByTechAn(df: pd.DataFrame, technologies: List) -> pd.DataFrame:
         mask = df['TECHNOLOGY'].str.contains(technologies[t])
         df_t = df[mask]
         df_f = df_f.append(df_t)
-
+    
     df = pd.DataFrame(columns=["REGION","YEAR","VALUE"])
     for r in df_f["REGION"].unique():
         for y in df_f["YEAR"].unique():
@@ -159,7 +163,7 @@ def calculate_trade(results: dict, techs: List) -> pd.DataFrame:
         countries = countries.append(df_f.loc[:,'REGION'])
         years = years.append(df_f.loc[:,'YEAR'])
         results[p] = df_f
-
+    
     countries = countries.unique()
     years = years.unique()
     exports = results['UseByTechnology']
@@ -341,7 +345,7 @@ def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame
             blob.append(iamc)
 
     for result in config['results']:
-
+        print(result['osemosys_param'], result['iamc_variable'])
         if type(result['osemosys_param']) == str:
             inpathname = os.path.join(results_path, result['osemosys_param'] + '.csv')
             results = read_file(inpathname)
@@ -394,7 +398,12 @@ def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame
             iamc = make_iamc(aggregated, config['model'], config['scenario'], result['iamc_variable'], unit)
             blob.append(iamc)
 
-    all_data = pyam.concat(blob)
+    try:
+        all_data = pyam.concat(blob)
+    except ValueError as err:
+        [x.to_csv(f"debug/{x.scenario[0]}_{x.variable[0]}.csv".replace("/","")) for x in blob]
+        [print(x.dimensions) for x in blob]
+        raise ValueError(err)
 
     all_data = all_data.convert_unit('PJ/yr', to='EJ/yr').timeseries()
     all_data = pyam.IamDataFrame(all_data)

@@ -189,14 +189,13 @@ def calculate_trade(results: dict, techs: List) -> pd.DataFrame:
 
 def extract_results(df: pd.DataFrame, technologies: Optional[List] = None, fuels: Optional[List] = None) -> pd.DataFrame:
     if technologies and "TECHNOLOGY" in df.columns:
-        mask = df.TECHNOLOGY.isin(technologies)
+        mask = df["TECHNOLOGY"].isin(technologies)
         return df[mask]
     elif fuels and "FUEL" in df.columns:
-        mask = df.FUEL.isin(fuels)
+        mask = df["FUEL"].isin(fuels)
         return df[mask]
     else:
         return df
-
 
 def load_config(filepath: str) -> Dict:
 
@@ -329,10 +328,8 @@ def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame
                     results_path, result["osemosys_param"], config["region"]
                 )
 
-                try:
-                    technologies = result.get("technology", None)
-                except KeyError:
-                    technologies = None
+                technologies = result.get("technology", None)
+                fuels = result.get("fuel", None)
 
                 unit = result["unit"]
                 if "fuel" in result.keys():
@@ -362,7 +359,6 @@ def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame
                     demands = result["demand"]
                     data = filter_final_energy(results, demands)
                 else:
-                    fuels = result.get("fuel", None)
                     data = extract_results(results, technologies, fuels)
 
             elif isinstance(result["osemosys_param"], list):

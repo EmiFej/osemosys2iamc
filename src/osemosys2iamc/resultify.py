@@ -26,8 +26,6 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import re
 
-# Creates an alias for United Kingdom and Greece using alternate 2-letter code
-# (see issue https://github.com/OSeMOSYS/osemosys2iamc/issues/33)
 countries_by_alpha2["UK"] = countries_by_alpha2["GB"]
 countries_by_alpha2["EL"] = countries_by_alpha2["GR"]
 
@@ -35,39 +33,23 @@ countries_by_alpha2["EL"] = countries_by_alpha2["GR"]
 def iso_to_country(
     iso_format: str, index: List[str], osemosys_param: str
 ) -> pd.DataFrame:
-    """Reads in selected CSV file and applies chosen region naming convention
 
-    Uses naming convention as given in the config file into a Pandas DataFrame
-
-    Parameters
-    ----------
-    iso_format: str
-        Extraction format from technology/fuel name based on iso2 or iso3 and where the code is located
-    index: List[str]
-        List of technologies/fuels
-    osemosys_param: str
-        Name of CSV file
-
-    Returns
-    -------
-    List[str]
-    """
     countries_list = []
     no_country_extracted = []
     format_regex = r"^iso[23]_([1-9]\d*|start|end)$"
 
-    # Verifies that given format is the expected format; Raises an error if expectation not met
+    
     if re.search(format_regex, iso_format) is not None:
 
         iso_type, abbr_loc = iso_format[3:].split("_")
 
-        # Assigns the correct dictionary to search based on iso type
+        
         if iso_type == "2":
             country_dict = countries_by_alpha2
         elif iso_type == "3":
             country_dict = countries_by_alpha3
 
-        # Creates the regex with the expected location of the ISO code
+        
         if abbr_loc == "start":
             region_regex = r"^(.{" + iso_type + r"}).*$"
         elif abbr_loc == "end":
@@ -77,12 +59,6 @@ def iso_to_country(
                 r"^.{" + str(int(abbr_loc) - 1) + r"}(.{" + iso_type + r"}).*$"
             )
 
-        """
-        Checks every technology/fuel name for a valid code. If found,
-        adds that country to the list for that tech/fuel name, otherwise
-        adds an empty string for that tech/fuel. A position exceeding the
-        length of the name, adds an empty string instead
-        """
         for i in index:
             if re.search(region_regex, i.upper()) != None:
                 code = re.search(region_regex, i.upper()).groups()[0]
@@ -100,11 +76,6 @@ def iso_to_country(
             "Invalid ISO type or abbreviation location. Valid locations are 'start', 'end', and a positive number denoting the start of the abbreviation in the string."
         )
 
-    """
-    If countries were not found, user is notified for which names and
-    in which CSV valid codes were not found. This may be intended by
-    the user so the program is not halt and continues normally
-    """
     if len(no_country_extracted) > 0:
         print(
             f"Using the ISO option, Countries were not found from the following technologies/fuels: {set(no_country_extracted)}"
@@ -117,31 +88,12 @@ def iso_to_country(
 
 
 def read_file(path: str, osemosys_param: str, region_name_option: str) -> pd.DataFrame:
-    """Reads in selected CSV file and applies chosen region
-    naming convention as given in the config file into a Pandas DataFrame
 
-    Parameters
-    ----------
-    path: str
-        Path to a folder of CSV files (OSeMOSYS inputs/outputs)
-    osemosys_param: str
-        Name of CSV file
-    region_name_option: str
-        Description of how the region is encoded in technology/fuel names and how it can be extracted
-
-    Returns
-    -------
-    pandas.DataFrame
-    """
 
     filename = os.path.join(path, osemosys_param + ".csv")
     df = pd.read_csv(filename)
 
-    """
-    Returns list of countries to REGION column based on option defined by the user
-    Anything other than a valid iso format or 'from_csv' will be accepted as the
-    intended name of the region
-    """
+
     if "iso" in region_name_option:
         if "FUEL" in df.columns:
             df["REGION"] = iso_to_country(
@@ -164,45 +116,25 @@ def read_file(path: str, osemosys_param: str, region_name_option: str) -> pd.Dat
 
 
 def filter_regex(df: pd.DataFrame, patterns: List[str], column: str) -> pd.DataFrame:
-    """Generic filtering of rows based on columns that match a list of patterns
 
-    This function returns the rows where the values in a ``column`` match the
-    list of regular expression ``patterns``
-    """
     masks = [df[column].str.match(p) for p in patterns]
     return pd.concat([df[mask] for mask in masks])
 
 
 def filter_fuels(df: pd.DataFrame, fuels: List[str]) -> pd.DataFrame:
-    """Returns rows which match list of regex patterns in ``technologies``
 
-    Parameters
-    ----------
-    df: pd.DataFrame
-        The input data
-    fuels: List[str]
-        List of regex patterns
-    """
     return filter_regex(df, fuels, "FUEL")
 
 
 def filter_technologies(df: pd.DataFrame, technologies: List[str]) -> pd.DataFrame:
-    """Returns rows which match list of regex patterns in ``technologies``
 
-    Parameters
-    ----------
-    df: pd.DataFrame
-        The input data
-    technologies: List[str]
-        List of regex patterns
-    """
     return filter_regex(df, technologies, "TECHNOLOGY")
 
 
 def filter_technology_fuel(
     df: pd.DataFrame, technologies: List, fuels: List
 ) -> pd.DataFrame:
-    """Return rows which match ``technologies`` and ``fuels``"""
+    
     df = filter_technologies(df, technologies)
     df = filter_fuels(df, fuels)
 
@@ -213,25 +145,12 @@ def filter_technology_fuel(
 def filter_emission_tech(
     df: pd.DataFrame, emission: List[str], technologies: Optional[List[str]] = None
 ) -> pd.DataFrame:
-    """Return annual emissions or captured emissions by one or several technologies.
 
-    Parameters
-    ----------
-    df: pd.DataFrame
-    emission: List[str]
-        List of regex patterns
-    technologies: List[str], default=None
-        List of regex patterns
-
-    Returns
-    -------
-    pandas.DataFrame
-    """
 
     df = filter_regex(df, emission, "EMISSION")
 
     if technologies:
-        # Create a list of masks, one for each row that matches the pattern listed in ``tech``
+        
         df = filter_technologies(df, technologies)
 
     df = df.groupby(by=["REGION", "YEAR"], as_index=False)["VALUE"].sum()
@@ -239,19 +158,7 @@ def filter_emission_tech(
 
 
 def filter_capacity(df: pd.DataFrame, technologies: List[str]) -> pd.DataFrame:
-    """Return aggregated rows filtered on technology column.
 
-    Parameters
-    ----------
-    df: pd.DataFrame
-        The input data
-    technologies: List[str]
-        List of regex patterns
-
-    Returns
-    -------
-    pandas.DataFrame
-    """
     df = filter_technologies(df, technologies)
 
     df = df.groupby(by=["REGION", "YEAR"], as_index=False)["VALUE"].sum()
@@ -259,7 +166,7 @@ def filter_capacity(df: pd.DataFrame, technologies: List[str]) -> pd.DataFrame:
 
 
 def filter_final_energy(df: pd.DataFrame, fuels: List) -> pd.DataFrame:
-    """Return dataframe that indicate the final energy demand/use per country and year."""
+
     df_f = filter_fuels(df, fuels)
 
     df = df_f.groupby(by=["REGION", "YEAR"], as_index=False)["VALUE"].sum()
@@ -280,40 +187,26 @@ def calculate_trade(results: dict, techs: List) -> pd.DataFrame:
     return df.reset_index()
 
 
-def extract_results(df: pd.DataFrame, technologies: List) -> pd.DataFrame:
-    """Return rows which match ``technologies``"""
-
-    mask = df.TECHNOLOGY.isin(technologies)
-
-    return df[mask]
+def extract_results(df: pd.DataFrame, technologies: Optional[List] = None, fuels: Optional[List] = None) -> pd.DataFrame:
+    if technologies and "TECHNOLOGY" in df.columns:
+        mask = df.TECHNOLOGY.isin(technologies)
+        return df[mask]
+    elif fuels and "FUEL" in df.columns:
+        mask = df.FUEL.isin(fuels)
+        return df[mask]
+    else:
+        return df
 
 
 def load_config(filepath: str) -> Dict:
-    """Reads the configuration file
 
-    Arguments
-    ---------
-    filepath : str
-        The path to the config file
-    """
     with open(filepath, "r") as configfile:
         config = load(configfile, Loader=SafeLoader)
     return config
 
 
 def make_plots(df: pyam.IamDataFrame, model: str, scenario: str, regions: List[str]):
-    """Creates standard plots
 
-    Arguments
-    ---------
-    model: str
-    scenario: str
-    """
-
-    # df = all_data #for testing
-    # model = config['model'] #for testing
-    # scenario = config['scenario'] #for testing
-    # regions = config['region']#for testing
 
     args = dict(model=model, scenario=scenario)
     print(args, regions)
@@ -393,29 +286,13 @@ def make_plots(df: pyam.IamDataFrame, model: str, scenario: str, regions: List[s
 
 
 def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame:
-    """Create the IAM data frame from results
-
-    Loops over each entry in the configuration file, extracts the data from
-    the relevant result file and puts this into the IAMC data format
-
-    Arguments
-    ---------
-    config : dict
-        The configuration dictionary
-    inputs_path: str
-        Path to a folder of CSV files (OSeMOSYS inputs)
-    results_path: str
-        Path to a folder of CSV files (OSeMOSYS results)
-    """
     blob = []
     filename = os.path.join(inputs_path, "YEAR.csv")
     years = pd.read_csv(filename)
 
     try:
         for input in config["inputs"]:
-
             inputs = read_file(inputs_path, input["osemosys_param"], config["region"])
-
             unit = input["unit"]
 
             if "variable_cost" in input.keys():
@@ -428,7 +305,8 @@ def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame
                 data["YEAR"] = [list_years] * len(data)
                 data = data.explode("YEAR").reset_index(drop=True)
                 data = data.drop(["TECHNOLOGY"], axis=1)
-
+            elif "new_variable" in input.keys():
+                data = process_new_variable(inputs, config)
             if not data.empty:
                 data = data.rename(
                     columns={"REGION": "region", "YEAR": "year", "VALUE": "value"}
@@ -446,16 +324,16 @@ def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame
 
     try:
         for result in config["results"]:
-
             if isinstance(result["osemosys_param"], str):
                 results = read_file(
                     results_path, result["osemosys_param"], config["region"]
                 )
 
                 try:
-                    technologies = result["technology"]
+                    technologies = result.get("technology", None)
                 except KeyError:
-                    pass
+                    technologies = None
+
                 unit = result["unit"]
                 if "fuel" in result.keys():
                     fuels = result["fuel"]
@@ -484,7 +362,8 @@ def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame
                     demands = result["demand"]
                     data = filter_final_energy(results, demands)
                 else:
-                    data = extract_results(results, technologies)
+                    fuels = result.get("fuel", None)
+                    data = extract_results(results, technologies, fuels)
 
             elif isinstance(result["osemosys_param"], list):
                 results = {}
@@ -552,7 +431,6 @@ def main(config: Dict, inputs_path: str, results_path: str) -> pyam.IamDataFrame
     else:
         raise ValueError("No data found")
 
-
 def aggregate(func):
     """Decorator for filters which returns the aggregated data"""
 
@@ -597,8 +475,6 @@ def entry_point():
     scenario = config["scenario"]
     regions = config["region"]
 
-    # Plotting fail reported in [issue 25](https://github.com/OSeMOSYS/osemosys2iamc/issues/25)
-    # make_plots(all_data, model, scenario, regions)
 
     all_data.to_excel(outpath, sheet_name="data")
 
